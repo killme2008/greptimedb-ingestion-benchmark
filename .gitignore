@@ -1,0 +1,21 @@
+# Binaries
+/ingestion-benchmark
+bin/ingestion-benchmark
+
+# GreptimeDB local install
+greptimedb/
+greptimedb_data/
+
+# Go build cache
+.gocache/
+
+# Environment
+.env
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
