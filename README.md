@@ -6,7 +6,9 @@ A CLI benchmark tool that compares GreptimeDB's ingestion performance across dif
 
 | Protocol | Go Client | Port | Transport |
 |----------|-----------|------|-----------|
-| gRPC SDK | `greptimedb-ingester-go` v0.6.2 | 4001 | gRPC |
+| gRPC SDK | `greptimedb-ingester-go` v0.6.3-pre | 4001 | gRPC |
+| gRPC Stream | `greptimedb-ingester-go` v0.6.3-pre | 4001 | gRPC (bidirectional streaming) |
+| gRPC Bulk (Arrow) | `greptimedb-ingester-go` v0.6.3-pre | 4001 | Arrow Flight (DoPut) |
 | InfluxDB Line Protocol | `influxdb-client-go` v2.14.0 | 4000 | HTTP |
 | OpenTelemetry (OTLP) | `go.opentelemetry.io/otel` v1.42.0 | 4000 | HTTP+Protobuf (Logs) |
 | MySQL INSERT | `go-sql-driver/mysql` v1.9.3 | 4002 | MySQL wire |
@@ -64,7 +66,7 @@ GREPTIME_PASSWORD=secret
 ### Benchmark Flags
 
 ```
--protocols         Comma-separated: grpc,influxdb,otel,mysql,postgres (default: all)
+-protocols         Comma-separated: grpc,grpc_stream,grpc_bulk,influxdb,otel,mysql,postgres (default: all)
 -total-rows        Total rows to write per protocol (default: 10000000)
 -batch-size        Rows per batch, comma-separated for multiple (default: 1000)
 -concurrency       Number of concurrent workers (default: 5)
@@ -99,6 +101,8 @@ Each protocol writes to its own isolated table to ensure fair comparison:
 | Protocol | Table |
 |----------|-------|
 | gRPC SDK | `benchmark_grpc` |
+| gRPC Stream | `benchmark_grpc_stream` |
+| gRPC Bulk (Arrow) | `benchmark_grpc_bulk` |
 | InfluxDB LP | `benchmark_influxdb` |
 | OpenTelemetry | `benchmark_otel` |
 | MySQL INSERT | `benchmark_mysql` |
