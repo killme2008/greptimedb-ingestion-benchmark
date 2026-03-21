@@ -3,6 +3,7 @@ package benchmark
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"strconv"
@@ -60,7 +61,15 @@ func percentileMs(sorted []time.Duration, p float64) float64 {
 	if len(sorted) == 0 {
 		return 0
 	}
-	idx := int(float64(len(sorted)-1) * p)
+	// Use ceiling of rank to avoid underreporting tail latencies.
+	// For N=100 and p=0.99: rank = ceil(100*0.99)-1 = 99, i.e. the last element.
+	idx := int(math.Ceil(float64(len(sorted))*p)) - 1
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(sorted) {
+		idx = len(sorted) - 1
+	}
 	return float64(sorted[idx].Microseconds()) / 1000.0
 }
 

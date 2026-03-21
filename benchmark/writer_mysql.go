@@ -27,6 +27,10 @@ func (w *MySQLWriter) Setup(cfg *Config) error {
 	if err != nil {
 		return err
 	}
+	// Match pool size to concurrency to avoid connection churn.
+	// Default MaxIdleConns=2 would cause frequent close/reopen under load.
+	db.SetMaxOpenConns(cfg.Concurrency)
+	db.SetMaxIdleConns(cfg.Concurrency)
 	w.db = db
 
 	createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
@@ -55,7 +59,7 @@ func (w *MySQLWriter) Setup(cfg *Config) error {
 	return nil
 }
 
-func (w *MySQLWriter) WriteBatch(points []DataPoint) error {
+func (w *MySQLWriter) WriteBatch(ctx context.Context, points []DataPoint) error {
 	if len(points) == 0 {
 		return nil
 	}
@@ -67,13 +71,13 @@ func (w *MySQLWriter) WriteBatch(points []DataPoint) error {
 
 	// Use the cached prepared statement for standard-size batches.
 	if len(points) == w.batchSize {
-		_, err := w.batchStmt.ExecContext(context.Background(), args...)
+		_, err := w.batchStmt.ExecContext(ctx, args...)
 		return err
 	}
 
 	// Fall back to unprepared exec for the last (smaller) batch.
 	query := buildMySQLInsert(w.tableName, len(points))
-	_, err := w.db.ExecContext(context.Background(), query, args...)
+	_, err := w.db.ExecContext(ctx, query, args...)
 	return err
 }
 

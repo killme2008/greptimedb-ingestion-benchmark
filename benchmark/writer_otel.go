@@ -11,6 +11,11 @@ import (
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 )
 
+// OTelWriter ingests data as OTLP log records by design.
+// This deliberately uses the log data model (not metrics) because GreptimeDB's
+// OTLP log ingestion is a distinct pathway worth benchmarking separately.
+// The comparison with other protocols reflects real-world ingestion diversity,
+// not a 1:1 schema-equivalent test.
 type OTelWriter struct {
 	exporter *otlploghttp.Exporter
 }
@@ -41,7 +46,7 @@ func (w *OTelWriter) Setup(cfg *Config) error {
 	return nil
 }
 
-func (w *OTelWriter) WriteBatch(points []DataPoint) error {
+func (w *OTelWriter) WriteBatch(ctx context.Context, points []DataPoint) error {
 	records := make([]sdklog.Record, len(points))
 	for i, p := range points {
 		records[i].SetTimestamp(p.Timestamp)
@@ -57,7 +62,7 @@ func (w *OTelWriter) WriteBatch(points []DataPoint) error {
 			logapi.Float64("net_out", p.NetOut),
 		)
 	}
-	return w.exporter.Export(context.Background(), records)
+	return w.exporter.Export(ctx, records)
 }
 
 func (w *OTelWriter) Close() error {

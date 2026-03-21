@@ -35,7 +35,7 @@ func (w *InfluxDBWriter) Setup(cfg *Config) error {
 	return nil
 }
 
-func (w *InfluxDBWriter) WriteBatch(points []DataPoint) error {
+func (w *InfluxDBWriter) WriteBatch(ctx context.Context, points []DataPoint) error {
 	influxPoints := make([]*write.Point, len(points))
 	for i, p := range points {
 		influxPoints[i] = influxdb2.NewPoint(
@@ -55,7 +55,7 @@ func (w *InfluxDBWriter) WriteBatch(points []DataPoint) error {
 		)
 	}
 
-	return w.writeAPI.WritePoint(context.Background(), influxPoints...)
+	return w.writeAPI.WritePoint(ctx, influxPoints...)
 }
 
 func (w *InfluxDBWriter) Close() error {

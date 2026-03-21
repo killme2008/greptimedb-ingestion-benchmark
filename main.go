@@ -47,8 +47,8 @@ func main() {
 
 	var protocols string
 	var batchSizeStr string
-	flag.StringVar(&protocols, "protocols", "all", "Comma-separated list: grpc,influxdb,otel,mysql,postgres (or 'all')")
-	flag.IntVar(&cfg.TotalRows, "total-rows", 1000000, "Total rows to write per protocol")
+	flag.StringVar(&protocols, "protocols", "all", "Comma-separated list: grpc,grpc_stream,grpc_bulk,influxdb,otel,mysql,postgres (or 'all')")
+	flag.IntVar(&cfg.TotalRows, "total-rows", 10000000, "Total rows to write per protocol")
 	flag.StringVar(&batchSizeStr, "batch-size", "1000", "Rows per batch (comma-separated for multiple: 50,100,500,1000)")
 	flag.IntVar(&cfg.Concurrency, "concurrency", 5, "Number of concurrent workers")
 	flag.IntVar(&cfg.WarmupBatches, "warmup-batches", 10, "Number of warm-up batches")

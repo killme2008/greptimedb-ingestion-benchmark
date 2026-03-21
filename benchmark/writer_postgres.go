@@ -14,7 +14,10 @@ type PostgresWriter struct {
 	tableName string
 	batchSize int
 	// batchQuery caches the INSERT query text for the standard batch size,
-	// so CacheStatement mode can match and skip re-parsing.
+	// avoiding repeated string construction on every WriteBatch call.
+	// Note: this is a Go-side optimization only. GreptimeDB does not support
+	// the Describe message, so pgx cannot use CacheStatement/CacheDescribe
+	// modes — every batch sends a full Parse+Bind+Execute round-trip.
 	batchQuery string
 }
 
@@ -37,6 +40,8 @@ func (w *PostgresWriter) Setup(cfg *Config) error {
 	// CacheStatement/CacheDescribe modes, so prepared statement caching
 	// is not possible via pgx — every batch incurs a Parse round-trip.
 	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
+	// Match pool size to concurrency to avoid connection wait under load.
+	poolCfg.MaxConns = int32(cfg.Concurrency)
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
 	if err != nil {
@@ -55,12 +60,11 @@ func (w *PostgresWriter) Setup(cfg *Config) error {
 		ts TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP TIME INDEX,
 		PRIMARY KEY (host, cloud_region)
 	) ENGINE=mito`, w.tableName)
-	// DDL uses Exec mode — not worth caching, and avoids Describe on DDL.
 	_, err = w.pool.Exec(context.Background(), createTable, pgx.QueryExecModeExec)
 	return err
 }
 
-func (w *PostgresWriter) WriteBatch(points []DataPoint) error {
+func (w *PostgresWriter) WriteBatch(ctx context.Context, points []DataPoint) error {
 	if len(points) == 0 {
 		return nil
 	}
@@ -71,13 +75,13 @@ func (w *PostgresWriter) WriteBatch(points []DataPoint) error {
 		args = append(args, p.Host, p.Region, p.CPU, p.Memory, p.DiskUtil, p.NetIn, p.NetOut, p.Timestamp)
 	}
 
-	// Use cached query for standard-size batches (benefits from CacheStatement).
+	// Use cached query text for standard-size batches.
 	query := w.batchQuery
 	if len(points) != w.batchSize {
 		query = buildPgInsert(w.tableName, len(points))
 	}
 
-	_, err := w.pool.Exec(context.Background(), query, args...)
+	_, err := w.pool.Exec(ctx, query, args...)
 	return err
 }
 

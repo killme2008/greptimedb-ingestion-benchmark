@@ -3,14 +3,18 @@ package benchmark
 import (
 	"context"
 
+	gpb "github.com/GreptimeTeam/greptime-proto/go/greptime/v1"
 	greptime "github.com/GreptimeTeam/greptimedb-ingester-go"
 	"github.com/GreptimeTeam/greptimedb-ingester-go/table"
-	"github.com/GreptimeTeam/greptimedb-ingester-go/table/types"
 )
 
 type GRPCWriter struct {
 	cli       *greptime.Client
 	tableName string
+	// schema is built once in Setup and reused in every WriteBatch call,
+	// avoiding per-batch AddTagColumn/AddFieldColumn/AddTimestampColumn overhead
+	// (type conversion + name sanitization on every call).
+	schema []*gpb.ColumnSchema
 }
 
 func (w *GRPCWriter) Name() string { return "gRPC SDK" }
@@ -28,39 +32,18 @@ func (w *GRPCWriter) Setup(cfg *Config) error {
 		return err
 	}
 	w.cli = cli
+
+	// Build column schema once; WriteBatch reuses it via WithColumnsSchema.
+	w.schema = buildGRPCSchema()
 	return nil
 }
 
-func (w *GRPCWriter) WriteBatch(points []DataPoint) error {
+func (w *GRPCWriter) WriteBatch(ctx context.Context, points []DataPoint) error {
 	tbl, err := table.New(w.tableName)
 	if err != nil {
 		return err
 	}
-
-	if err := tbl.AddTagColumn("host", types.STRING); err != nil {
-		return err
-	}
-	if err := tbl.AddTagColumn("cloud_region", types.STRING); err != nil {
-		return err
-	}
-	if err := tbl.AddFieldColumn("cpu", types.FLOAT64); err != nil {
-		return err
-	}
-	if err := tbl.AddFieldColumn("memory", types.FLOAT64); err != nil {
-		return err
-	}
-	if err := tbl.AddFieldColumn("disk_util", types.FLOAT64); err != nil {
-		return err
-	}
-	if err := tbl.AddFieldColumn("net_in", types.FLOAT64); err != nil {
-		return err
-	}
-	if err := tbl.AddFieldColumn("net_out", types.FLOAT64); err != nil {
-		return err
-	}
-	if err := tbl.AddTimestampColumn("ts", types.TIMESTAMP_MILLISECOND); err != nil {
-		return err
-	}
+	tbl.WithColumnsSchema(w.schema)
 
 	for _, p := range points {
 		if err := tbl.AddRow(p.Host, p.Region, p.CPU, p.Memory, p.DiskUtil, p.NetIn, p.NetOut, p.Timestamp); err != nil {
@@ -68,7 +51,7 @@ func (w *GRPCWriter) WriteBatch(points []DataPoint) error {
 		}
 	}
 
-	_, err = w.cli.Write(context.Background(), tbl)
+	_, err = w.cli.Write(ctx, tbl)
 	return err
 }
 

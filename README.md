@@ -65,7 +65,7 @@ GREPTIME_PASSWORD=secret
 
 ```
 -protocols         Comma-separated: grpc,influxdb,otel,mysql,postgres (default: all)
--total-rows        Total rows to write per protocol (default: 1000000)
+-total-rows        Total rows to write per protocol (default: 10000000)
 -batch-size        Rows per batch, comma-separated for multiple (default: 1000)
 -concurrency       Number of concurrent workers (default: 5)
 -warmup-batches    Warm-up batches before measurement (default: 10)

@@ -1,6 +1,7 @@
 package benchmark
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,6 +29,8 @@ type BenchmarkResult struct {
 	WallTime   time.Duration
 }
 
+const defaultBatchTimeout = 30 * time.Second
+
 // RunBenchmark executes the full benchmark lifecycle for a single writer.
 // warmupBatches and measureBatches must be disjoint slices to avoid double-writing.
 func RunBenchmark(w Writer, cfg *Config, warmupBatches, measureBatches [][]DataPoint) (*BenchmarkResult, error) {
@@ -35,12 +39,46 @@ func RunBenchmark(w Writer, cfg *Config, warmupBatches, measureBatches [][]DataP
 	}
 	defer func() { _ = w.Close() }()
 
-	// Warm-up phase: write warmup batches, track successful rows.
-	var warmupRows int
-	for _, batch := range warmupBatches {
-		if err := w.WriteBatch(batch); err == nil {
-			warmupRows += len(batch)
+	batchTimeout := cfg.BatchTimeout
+	if batchTimeout == 0 {
+		batchTimeout = defaultBatchTimeout
+	}
+
+	// Warm-up phase: write warmup batches concurrently to also warm connection pools.
+	ww, isWorkerWriter := w.(WorkerWriter)
+
+	var warmupRows int64
+	if len(warmupBatches) > 0 {
+		ch := make(chan []DataPoint, len(warmupBatches))
+		for _, b := range warmupBatches {
+			ch <- b
 		}
+		close(ch)
+
+		var wg sync.WaitGroup
+		for i := 0; i < cfg.Concurrency; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				bw := Writer(w)
+				if isWorkerWriter {
+					worker, err := ww.NewWorker()
+					if err != nil {
+						return
+					}
+					defer func() { _ = worker.Close() }()
+					bw = worker
+				}
+				for batch := range ch {
+					ctx, cancel := context.WithTimeout(context.Background(), batchTimeout)
+					if err := bw.WriteBatch(ctx, batch); err == nil {
+						atomic.AddInt64(&warmupRows, int64(len(batch)))
+					}
+					cancel()
+				}
+			}()
+		}
+		wg.Wait()
 	}
 
 	// Measurement phase.
@@ -60,11 +98,25 @@ func RunBenchmark(w Writer, cfg *Config, warmupBatches, measureBatches [][]DataP
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			bw := Writer(w)
+			if isWorkerWriter {
+				worker, err := ww.NewWorker()
+				if err != nil {
+					mu.Lock()
+					allResults = append(allResults, BatchResult{Err: err})
+					mu.Unlock()
+					return
+				}
+				defer func() { _ = worker.Close() }()
+				bw = worker
+			}
 			var local []BatchResult
 			for batch := range ch {
+				ctx, cancel := context.WithTimeout(context.Background(), batchTimeout)
 				t0 := time.Now()
-				err := w.WriteBatch(batch)
+				err := bw.WriteBatch(ctx, batch)
 				elapsed := time.Since(t0)
+				cancel()
 				local = append(local, BatchResult{
 					Duration: elapsed,
 					Rows:     len(batch),
@@ -83,7 +135,7 @@ func RunBenchmark(w Writer, cfg *Config, warmupBatches, measureBatches [][]DataP
 	return &BenchmarkResult{
 		Protocol:   w.Name(),
 		Results:    allResults,
-		WarmupRows: warmupRows,
+		WarmupRows: int(warmupRows),
 		WallTime:   wallTime,
 	}, nil
 }
@@ -177,33 +229,35 @@ func Run(cfg *Config) error {
 	var allStats []ProtocolStats
 
 	for _, batchSize := range cfg.BatchSizes {
-		cfg.BatchSize = batchSize
+		// Create a per-round copy so the shared cfg is never mutated.
+		roundCfg := *cfg
+		roundCfg.BatchSize = batchSize
 
 		// Generate enough data for both warmup and measurement.
-		warmupRows := cfg.WarmupBatches * batchSize
-		totalRows := cfg.TotalRows + warmupRows
+		warmupRows := roundCfg.WarmupBatches * batchSize
+		totalRows := roundCfg.TotalRows + warmupRows
 		log.Printf("Generating %d data points (%d warmup + %d measurement, batch=%d, seed=%d)...",
-			totalRows, warmupRows, cfg.TotalRows, batchSize, cfg.Seed)
-		allPoints := GenerateData(totalRows, cfg.Seed)
+			totalRows, warmupRows, roundCfg.TotalRows, batchSize, roundCfg.Seed)
+		allPoints := GenerateData(totalRows, roundCfg.Seed)
 		allBatches := SplitBatches(allPoints, batchSize)
 
 		// Split into warmup and measurement batches.
-		warmupBatches := allBatches[:cfg.WarmupBatches]
-		measureBatches := allBatches[cfg.WarmupBatches:]
+		warmupBatches := allBatches[:roundCfg.WarmupBatches]
+		measureBatches := allBatches[roundCfg.WarmupBatches:]
 		log.Printf("Split into %d warmup + %d measurement batches of up to %d rows each",
 			len(warmupBatches), len(measureBatches), batchSize)
 
 		// Each batch-size round creates fresh writers (new connections, prepared stmts).
-		writers := buildWriters(cfg.Protocols)
+		writers := buildWriters(roundCfg.Protocols)
 
 		for _, pw := range writers {
-			cfg.TableName = "benchmark_" + pw.Key
-			log.Printf("Running benchmark: %s (table: %s, batch=%d)", pw.Writer.Name(), cfg.TableName, batchSize)
+			roundCfg.TableName = "benchmark_" + pw.Key
+			log.Printf("Running benchmark: %s (table: %s, batch=%d)", pw.Writer.Name(), roundCfg.TableName, batchSize)
 
 			// Truncate table from previous runs to ensure fresh insert measurement.
-			truncateTable(cfg, cfg.TableName)
+			truncateTable(&roundCfg, roundCfg.TableName)
 
-			result, err := RunBenchmark(pw.Writer, cfg, warmupBatches, measureBatches)
+			result, err := RunBenchmark(pw.Writer, &roundCfg, warmupBatches, measureBatches)
 			if err != nil {
 				log.Printf("ERROR [%s]: %v", pw.Writer.Name(), err)
 				continue
@@ -229,7 +283,7 @@ func Run(cfg *Config) error {
 				}
 			}
 			expectedRows := result.WarmupRows + measureRows
-			verifyRowCount(cfg, cfg.TableName, expectedRows)
+			verifyRowCount(&roundCfg, roundCfg.TableName, expectedRows)
 		}
 	}
 

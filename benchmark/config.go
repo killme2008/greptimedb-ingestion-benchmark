@@ -3,6 +3,7 @@ package benchmark
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -18,6 +19,7 @@ type Config struct {
 	WarmupBatches int
 	Seed          int64
 	Output        string
+	BatchTimeout  time.Duration
 
 	// BatchSize is set internally per batch-size round, not a CLI flag.
 	BatchSize int
@@ -25,7 +27,7 @@ type Config struct {
 	TableName string
 }
 
-var AllProtocols = []string{"grpc", "influxdb", "otel", "mysql", "postgres"}
+var AllProtocols = []string{"grpc", "grpc_stream", "grpc_bulk", "influxdb", "otel", "mysql", "postgres"}
 
 func (c *Config) Validate() error {
 	if c.TotalRows <= 0 {
