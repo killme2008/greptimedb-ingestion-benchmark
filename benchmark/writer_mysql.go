@@ -33,18 +33,7 @@ func (w *MySQLWriter) Setup(cfg *Config) error {
 	db.SetMaxIdleConns(cfg.Concurrency)
 	w.db = db
 
-	createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-		host STRING,
-		cloud_region STRING,
-		cpu DOUBLE,
-		memory DOUBLE,
-		disk_util DOUBLE,
-		net_in DOUBLE,
-		net_out DOUBLE,
-		ts TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP TIME INDEX,
-		PRIMARY KEY (host, cloud_region)
-	) ENGINE=mito`, w.tableName)
-	if _, err = w.db.ExecContext(context.Background(), createTable); err != nil {
+	if _, err = w.db.ExecContext(context.Background(), createTableDDL(w.tableName)); err != nil {
 		return err
 	}
 

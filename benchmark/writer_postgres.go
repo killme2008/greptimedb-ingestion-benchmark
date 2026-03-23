@@ -49,18 +49,7 @@ func (w *PostgresWriter) Setup(cfg *Config) error {
 	}
 	w.pool = pool
 
-	createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-		host STRING,
-		cloud_region STRING,
-		cpu DOUBLE,
-		memory DOUBLE,
-		disk_util DOUBLE,
-		net_in DOUBLE,
-		net_out DOUBLE,
-		ts TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP TIME INDEX,
-		PRIMARY KEY (host, cloud_region)
-	) ENGINE=mito`, w.tableName)
-	_, err = w.pool.Exec(context.Background(), createTable, pgx.QueryExecModeExec)
+	_, err = w.pool.Exec(context.Background(), createTableDDL(w.tableName), pgx.QueryExecModeExec)
 	return err
 }
 

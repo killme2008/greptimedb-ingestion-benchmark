@@ -6,7 +6,6 @@ import (
 
 	gpb "github.com/GreptimeTeam/greptime-proto/go/greptime/v1"
 	greptime "github.com/GreptimeTeam/greptimedb-ingester-go"
-	"github.com/GreptimeTeam/greptimedb-ingester-go/table"
 )
 
 // GRPCBulkWriter uses the Arrow Flight based BulkWrite API.
@@ -25,27 +24,11 @@ func (w *GRPCBulkWriter) Setup(cfg *Config) error {
 	w.schema = buildGRPCSchema()
 
 	// BulkWrite (Arrow Flight DoPut) does not support auto-create tables.
-	createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-		host STRING,
-		cloud_region STRING,
-		cpu DOUBLE,
-		memory DOUBLE,
-		disk_util DOUBLE,
-		net_in DOUBLE,
-		net_out DOUBLE,
-		ts TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP TIME INDEX,
-		PRIMARY KEY (host, cloud_region)
-	) ENGINE=mito`, cfg.TableName)
-	if _, err := execSQL(cfg, createTable); err != nil {
+	if _, err := execSQL(cfg, createTableDDL(cfg.TableName)); err != nil {
 		return fmt.Errorf("create table for bulk write: %w", err)
 	}
 
-	grpcCfg := greptime.NewConfig(cfg.Host).
-		WithPort(4001).
-		WithDatabase(cfg.Database).
-		WithAuth(cfg.User, cfg.Password)
-
-	cli, err := greptime.NewClient(grpcCfg)
+	cli, err := newGRPCClient(cfg)
 	if err != nil {
 		return err
 	}
@@ -54,19 +37,11 @@ func (w *GRPCBulkWriter) Setup(cfg *Config) error {
 }
 
 func (w *GRPCBulkWriter) WriteBatch(ctx context.Context, points []DataPoint) error {
-	tbl, err := table.New(w.tableName)
+	tbl, err := buildGRPCTable(w.tableName, w.schema, points)
 	if err != nil {
 		return err
 	}
-	tbl.WithColumnsSchema(w.schema)
-
-	for _, p := range points {
-		if err := tbl.AddRow(p.Host, p.Region, p.CPU, p.Memory, p.DiskUtil, p.NetIn, p.NetOut, p.Timestamp); err != nil {
-			return err
-		}
-	}
-
-	_, err = w.cli.BulkWrite(ctx, tbl)
+	_, err = w.cli.BulkWrite(context.Background(), tbl)
 	return err
 }
 

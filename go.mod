@@ -4,7 +4,7 @@ go 1.25.4
 
 require (
 	github.com/GreptimeTeam/greptime-proto v0.15.0
-	github.com/GreptimeTeam/greptimedb-ingester-go v0.6.3-0.20250811223947-36da11ebf96e
+	github.com/GreptimeTeam/greptimedb-ingester-go v0.7.0
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/jackc/pgx/v5 v5.8.0

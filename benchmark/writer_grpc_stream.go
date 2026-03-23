@@ -5,7 +5,6 @@ import (
 
 	gpb "github.com/GreptimeTeam/greptime-proto/go/greptime/v1"
 	greptime "github.com/GreptimeTeam/greptimedb-ingester-go"
-	"github.com/GreptimeTeam/greptimedb-ingester-go/table"
 )
 
 // GRPCStreamWriter uses gRPC bidirectional streaming (StreamWrite / CloseStream).
@@ -32,12 +31,7 @@ func (w *GRPCStreamWriter) Setup(cfg *Config) error {
 
 // NewWorker creates an independent writer with its own gRPC Client and stream.
 func (w *GRPCStreamWriter) NewWorker() (Writer, error) {
-	grpcCfg := greptime.NewConfig(w.cfg.Host).
-		WithPort(4001).
-		WithDatabase(w.cfg.Database).
-		WithAuth(w.cfg.User, w.cfg.Password)
-
-	cli, err := greptime.NewClient(grpcCfg)
+	cli, err := newGRPCClient(w.cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -52,18 +46,10 @@ func (w *GRPCStreamWriter) NewWorker() (Writer, error) {
 }
 
 func (w *GRPCStreamWriter) WriteBatch(ctx context.Context, points []DataPoint) error {
-	tbl, err := table.New(w.tableName)
+	tbl, err := buildGRPCTable(w.tableName, w.schema, points)
 	if err != nil {
 		return err
 	}
-	tbl.WithColumnsSchema(w.schema)
-
-	for _, p := range points {
-		if err := tbl.AddRow(p.Host, p.Region, p.CPU, p.Memory, p.DiskUtil, p.NetIn, p.NetOut, p.Timestamp); err != nil {
-			return err
-		}
-	}
-
 	// Use context.Background() because the SDK binds the stream lifecycle to
 	// the context of the first StreamWrite call. A per-batch timeout context
 	// would tear down the stream when cancelled. The stream is flushed and
@@ -82,18 +68,4 @@ func (w *GRPCStreamWriter) Close() error {
 		return err
 	}
 	return w.cli.Close()
-}
-
-// buildGRPCSchema returns the shared column schema used by all gRPC-based writers.
-func buildGRPCSchema() []*gpb.ColumnSchema {
-	return []*gpb.ColumnSchema{
-		{ColumnName: "host", SemanticType: gpb.SemanticType_TAG, Datatype: gpb.ColumnDataType_STRING},
-		{ColumnName: "cloud_region", SemanticType: gpb.SemanticType_TAG, Datatype: gpb.ColumnDataType_STRING},
-		{ColumnName: "cpu", SemanticType: gpb.SemanticType_FIELD, Datatype: gpb.ColumnDataType_FLOAT64},
-		{ColumnName: "memory", SemanticType: gpb.SemanticType_FIELD, Datatype: gpb.ColumnDataType_FLOAT64},
-		{ColumnName: "disk_util", SemanticType: gpb.SemanticType_FIELD, Datatype: gpb.ColumnDataType_FLOAT64},
-		{ColumnName: "net_in", SemanticType: gpb.SemanticType_FIELD, Datatype: gpb.ColumnDataType_FLOAT64},
-		{ColumnName: "net_out", SemanticType: gpb.SemanticType_FIELD, Datatype: gpb.ColumnDataType_FLOAT64},
-		{ColumnName: "ts", SemanticType: gpb.SemanticType_TIMESTAMP, Datatype: gpb.ColumnDataType_TIMESTAMP_MILLISECOND},
-	}
 }
