@@ -4,13 +4,14 @@ go 1.25.4
 
 require (
 	github.com/GreptimeTeam/greptime-proto v0.15.0
-	github.com/GreptimeTeam/greptimedb-ingester-go v0.7.0
+	github.com/GreptimeTeam/greptimedb-ingester-go v0.7.1
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/jackc/pgx/v5 v5.8.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.18.0
 	go.opentelemetry.io/otel/log v0.18.0
 	go.opentelemetry.io/otel/sdk/log v0.18.0
+	google.golang.org/grpc v1.79.2
 )
 
 require (
@@ -53,6 +54,5 @@ require (
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260209200024-4cfbd4190f57 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
-	google.golang.org/grpc v1.79.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )

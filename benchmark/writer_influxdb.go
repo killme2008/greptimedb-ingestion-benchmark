@@ -41,8 +41,10 @@ func (w *InfluxDBWriter) WriteBatch(ctx context.Context, points []DataPoint) err
 		influxPoints[i] = influxdb2.NewPoint(
 			w.tableName,
 			map[string]string{
-				"host":         p.Host,
-				"cloud_region": p.Region,
+				"host":       p.Host,
+				"region":     p.Region,
+				"datacenter": p.Datacenter,
+				"service":    p.Service,
 			},
 			map[string]interface{}{
 				"cpu":       p.CPU,

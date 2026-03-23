@@ -54,7 +54,9 @@ func (w *OTelWriter) WriteBatch(ctx context.Context, points []DataPoint) error {
 		records[i].SetSeverity(logapi.SeverityInfo)
 		records[i].AddAttributes(
 			logapi.String("host", p.Host),
-			logapi.String("cloud_region", p.Region),
+			logapi.String("region", p.Region),
+			logapi.String("datacenter", p.Datacenter),
+			logapi.String("service", p.Service),
 			logapi.Float64("cpu", p.CPU),
 			logapi.Float64("memory", p.Memory),
 			logapi.Float64("disk_util", p.DiskUtil),

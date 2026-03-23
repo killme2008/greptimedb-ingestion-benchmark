@@ -33,7 +33,7 @@ func (w *MySQLWriter) Setup(cfg *Config) error {
 	db.SetMaxIdleConns(cfg.Concurrency)
 	w.db = db
 
-	if _, err = w.db.ExecContext(context.Background(), createTableDDL(w.tableName)); err != nil {
+	if _, err = w.db.ExecContext(context.Background(), createTableDDL(w.tableName, "`")); err != nil {
 		return err
 	}
 
@@ -53,9 +53,9 @@ func (w *MySQLWriter) WriteBatch(ctx context.Context, points []DataPoint) error 
 		return nil
 	}
 
-	args := make([]interface{}, 0, len(points)*8)
+	args := make([]interface{}, 0, len(points)*numCols)
 	for _, p := range points {
-		args = append(args, p.Host, p.Region, p.CPU, p.Memory, p.DiskUtil, p.NetIn, p.NetOut, p.Timestamp)
+		args = append(args, p.Host, p.Region, p.Datacenter, p.Service, p.CPU, p.Memory, p.DiskUtil, p.NetIn, p.NetOut, p.Timestamp)
 	}
 
 	// Use the cached prepared statement for standard-size batches.
@@ -80,9 +80,11 @@ func (w *MySQLWriter) Close() error {
 	return nil
 }
 
+const numCols = 10
+
 func buildMySQLInsert(tableName string, numRows int) string {
-	const cols = "host, cloud_region, cpu, memory, disk_util, net_in, net_out, ts"
-	row := "(?, ?, ?, ?, ?, ?, ?, ?)"
+	const cols = "host, `region`, datacenter, `service`, cpu, memory, disk_util, net_in, net_out, ts"
+	row := "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	rows := make([]string, numRows)
 	for i := range rows {
 		rows[i] = row

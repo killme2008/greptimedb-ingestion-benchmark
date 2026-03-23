@@ -171,7 +171,10 @@ func execSQL(cfg *Config, query string) ([]byte, error) {
 func truncateTable(cfg *Config, tableName string) {
 	_, err := execSQL(cfg, fmt.Sprintf("TRUNCATE TABLE %s", tableName))
 	if err != nil {
-		log.Printf("  [truncate] %s: %v (may not exist yet)", tableName, err)
+		// Table not found on first run is expected; only log other errors.
+		if !strings.Contains(err.Error(), "Table not found") {
+			log.Printf("  [truncate] %s: %v", tableName, err)
+		}
 	} else {
 		log.Printf("  [truncate] %s: OK", tableName)
 	}

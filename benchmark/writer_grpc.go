@@ -52,18 +52,22 @@ func (w *GRPCWriter) Close() error {
 
 // createTableDDL returns the CREATE TABLE IF NOT EXISTS statement for the
 // benchmark table. Used by writers whose protocol does not support auto-create.
-func createTableDDL(tableName string) string {
-	return fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-		host STRING,
-		cloud_region STRING,
-		cpu DOUBLE,
-		memory DOUBLE,
-		disk_util DOUBLE,
-		net_in DOUBLE,
-		net_out DOUBLE,
-		ts TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP TIME INDEX,
-		PRIMARY KEY (host, cloud_region)
-	) ENGINE=mito`, tableName)
+// quote is the identifier quoting character: backtick for MySQL/HTTP SQL, double-quote for PostgreSQL.
+func createTableDDL(tableName string, quote string) string {
+	q := func(name string) string { return quote + name + quote }
+	return fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s ("+
+		"host STRING, "+
+		"%s STRING, "+
+		"datacenter STRING, "+
+		"%s STRING, "+
+		"cpu DOUBLE, "+
+		"memory DOUBLE, "+
+		"disk_util DOUBLE, "+
+		"net_in DOUBLE, "+
+		"net_out DOUBLE, "+
+		"ts TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP TIME INDEX, "+
+		"PRIMARY KEY (host, %s, datacenter, %s)"+
+		") ENGINE=mito", tableName, q("region"), q("service"), q("region"), q("service"))
 }
 
 // newGRPCClient creates a greptime Client with standard connection settings.
@@ -79,7 +83,9 @@ func newGRPCClient(cfg *Config) (*greptime.Client, error) {
 func buildGRPCSchema() []*gpb.ColumnSchema {
 	return []*gpb.ColumnSchema{
 		{ColumnName: "host", SemanticType: gpb.SemanticType_TAG, Datatype: gpb.ColumnDataType_STRING},
-		{ColumnName: "cloud_region", SemanticType: gpb.SemanticType_TAG, Datatype: gpb.ColumnDataType_STRING},
+		{ColumnName: "region", SemanticType: gpb.SemanticType_TAG, Datatype: gpb.ColumnDataType_STRING},
+		{ColumnName: "datacenter", SemanticType: gpb.SemanticType_TAG, Datatype: gpb.ColumnDataType_STRING},
+		{ColumnName: "service", SemanticType: gpb.SemanticType_TAG, Datatype: gpb.ColumnDataType_STRING},
 		{ColumnName: "cpu", SemanticType: gpb.SemanticType_FIELD, Datatype: gpb.ColumnDataType_FLOAT64},
 		{ColumnName: "memory", SemanticType: gpb.SemanticType_FIELD, Datatype: gpb.ColumnDataType_FLOAT64},
 		{ColumnName: "disk_util", SemanticType: gpb.SemanticType_FIELD, Datatype: gpb.ColumnDataType_FLOAT64},
@@ -98,7 +104,7 @@ func buildGRPCTable(tableName string, schema []*gpb.ColumnSchema, points []DataP
 	tbl.WithColumnsSchema(schema)
 
 	for _, p := range points {
-		if err := tbl.AddRow(p.Host, p.Region, p.CPU, p.Memory, p.DiskUtil, p.NetIn, p.NetOut, p.Timestamp); err != nil {
+		if err := tbl.AddRow(p.Host, p.Region, p.Datacenter, p.Service, p.CPU, p.Memory, p.DiskUtil, p.NetIn, p.NetOut, p.Timestamp); err != nil {
 			return nil, err
 		}
 	}

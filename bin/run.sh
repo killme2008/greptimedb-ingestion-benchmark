@@ -79,11 +79,34 @@ build_benchmark() {
     (cd "$ROOT_DIR" && go build -o "$ROOT_DIR/bin/ingestion-benchmark" .)
 }
 
-trap cleanup EXIT
+# For --help / -h, just build and print usage without starting GreptimeDB.
+for arg in "${BENCH_ARGS[@]+"${BENCH_ARGS[@]}"}"; do
+    if [[ "$arg" == "-h" || "$arg" == "--help" || "$arg" == "-help" ]]; then
+        build_benchmark
+        "$ROOT_DIR/bin/ingestion-benchmark" -h
+        exit 0
+    fi
+done
 
-install_greptimedb
+# If user specifies -host (flag or env), they manage GreptimeDB themselves.
+MANAGED_DB=true
+for arg in "${BENCH_ARGS[@]+"${BENCH_ARGS[@]}"}"; do
+    if [[ "$arg" == "-host" || "$arg" == "--host" ]]; then
+        MANAGED_DB=false
+        break
+    fi
+done
+if [[ -n "${GREPTIME_HOST:-}" ]]; then
+    MANAGED_DB=false
+fi
+
 build_benchmark
-start_greptimedb
+
+if [[ "$MANAGED_DB" == "true" ]]; then
+    trap cleanup EXIT
+    install_greptimedb
+    start_greptimedb
+fi
 
 echo ""
 "$ROOT_DIR/bin/ingestion-benchmark" "${BENCH_ARGS[@]+"${BENCH_ARGS[@]}"}"

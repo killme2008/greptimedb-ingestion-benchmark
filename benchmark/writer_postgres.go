@@ -49,7 +49,7 @@ func (w *PostgresWriter) Setup(cfg *Config) error {
 	}
 	w.pool = pool
 
-	_, err = w.pool.Exec(context.Background(), createTableDDL(w.tableName), pgx.QueryExecModeExec)
+	_, err = w.pool.Exec(context.Background(), createTableDDL(w.tableName, `"`), pgx.QueryExecModeExec)
 	return err
 }
 
@@ -58,10 +58,9 @@ func (w *PostgresWriter) WriteBatch(ctx context.Context, points []DataPoint) err
 		return nil
 	}
 
-	const numCols = 8
 	args := make([]any, 0, len(points)*numCols)
 	for _, p := range points {
-		args = append(args, p.Host, p.Region, p.CPU, p.Memory, p.DiskUtil, p.NetIn, p.NetOut, p.Timestamp)
+		args = append(args, p.Host, p.Region, p.Datacenter, p.Service, p.CPU, p.Memory, p.DiskUtil, p.NetIn, p.NetOut, p.Timestamp)
 	}
 
 	// Use cached query text for standard-size batches.
@@ -82,14 +81,13 @@ func (w *PostgresWriter) Close() error {
 }
 
 func buildPgInsert(tableName string, numRows int) string {
-	const numCols = 8
 	rows := make([]string, numRows)
 	for i := range rows {
 		base := i*numCols + 1
-		rows[i] = fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
-			base, base+1, base+2, base+3, base+4, base+5, base+6, base+7)
+		rows[i] = fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			base, base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9)
 	}
 	return fmt.Sprintf(
-		"INSERT INTO %s (host, cloud_region, cpu, memory, disk_util, net_in, net_out, ts) VALUES %s",
+		`INSERT INTO %s (host, "region", datacenter, "service", cpu, memory, disk_util, net_in, net_out, ts) VALUES %s`,
 		tableName, strings.Join(rows, ", "))
 }
