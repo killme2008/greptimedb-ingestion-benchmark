@@ -64,6 +64,7 @@ func RunBenchmark(w Writer, cfg *Config, warmupBatches, measureBatches [][]DataP
 				if isWorkerWriter {
 					worker, err := ww.NewWorker()
 					if err != nil {
+						log.Printf("warmup: failed to create worker for %s: %v", w.Name(), err)
 						return
 					}
 					defer func() { _ = worker.Close() }()
@@ -247,6 +248,12 @@ func Run(cfg *Config) error {
 		// Split into warmup and measurement batches.
 		warmupBatches := allBatches[:roundCfg.WarmupBatches]
 		measureBatches := allBatches[roundCfg.WarmupBatches:]
+		// Drop the final measurement batch if it is smaller than batchSize.
+		// A partial tail batch skews latency percentiles because smaller batches
+		// complete faster, artificially lowering P95/P99.
+		if n := len(measureBatches); n > 0 && len(measureBatches[n-1]) < batchSize {
+			measureBatches = measureBatches[:n-1]
+		}
 		log.Printf("Split into %d warmup + %d measurement batches of up to %d rows each",
 			len(warmupBatches), len(measureBatches), batchSize)
 

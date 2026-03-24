@@ -66,6 +66,10 @@ func (w *GRPCBulkWriter) NewWorker() (Writer, error) {
 }
 
 func (w *GRPCBulkWriter) WriteBatch(ctx context.Context, points []DataPoint) error {
+	// The Arrow Flight BulkWriter uses a long-lived DoPut stream created in
+	// NewWorker; individual Write calls cannot be cancelled via context.
+	// The stream lifecycle is managed by Close (which calls bw.Close()).
+	_ = ctx
 	tbl, err := buildGRPCTable(w.tableName, w.schema, points)
 	if err != nil {
 		return err

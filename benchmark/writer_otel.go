@@ -20,7 +20,7 @@ type OTelWriter struct {
 	exporter *otlploghttp.Exporter
 }
 
-func (w *OTelWriter) Name() string { return "OpenTelemetry" }
+func (w *OTelWriter) Name() string { return "OpenTelemetry Logs" }
 
 func (w *OTelWriter) Setup(cfg *Config) error {
 	ctx := context.Background()
