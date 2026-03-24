@@ -15,10 +15,9 @@ type PostgresWriter struct {
 	batchSize int
 	// batchQuery caches the INSERT query text for the standard batch size,
 	// avoiding repeated string construction on every WriteBatch call.
-	// Note: this is a Go-side optimization only. GreptimeDB does not support
-	// the Describe message, so pgx cannot use CacheStatement/CacheDescribe
-	// modes — every batch sends a full Parse+Bind+Execute round-trip.
 	batchQuery string
+	// stmtName is the name of the prepared statement for standard batch size.
+	stmtName string
 }
 
 func (w *PostgresWriter) Name() string { return "PostgreSQL INSERT" }
@@ -27,20 +26,48 @@ func (w *PostgresWriter) Setup(cfg *Config) error {
 	w.tableName = cfg.TableName
 	w.batchSize = cfg.BatchSize
 	w.batchQuery = buildPgInsert(cfg.TableName, cfg.BatchSize)
+	w.stmtName = "batch_insert"
 
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:4003/%s?sslmode=disable",
 		cfg.User, cfg.Password, cfg.Host, cfg.Database)
+
+	conn, err := pgx.Connect(context.Background(), dsn)
+	if err != nil {
+		return err
+	}
+	_, err = conn.Exec(context.Background(), createTableDDL(w.tableName, `"`))
+	conn.Close(context.Background())
+	if err != nil {
+		return err
+	}
 
 	poolCfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return err
 	}
-	// QueryExecModeExec: sends Parse(unnamed)+Bind+Execute each time.
-	// GreptimeDB does not support the Describe message required by
-	// CacheStatement/CacheDescribe modes, so prepared statement caching
-	// is not possible via pgx — every batch incurs a Parse round-trip.
-	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
-	// Match pool size to concurrency to avoid connection wait under load.
+
+	paramTypes := make([]uint32, cfg.BatchSize*numCols)
+	for i := 0; i < cfg.BatchSize; i++ {
+		base := i * numCols
+		paramTypes[base+0] = 25
+		paramTypes[base+1] = 25
+		paramTypes[base+2] = 25
+		paramTypes[base+3] = 25
+		paramTypes[base+4] = 701
+		paramTypes[base+5] = 701
+		paramTypes[base+6] = 701
+		paramTypes[base+7] = 701
+		paramTypes[base+8] = 701
+		paramTypes[base+9] = 1184
+	}
+
+	batchQuery := w.batchQuery
+	stmtName := w.stmtName
+	poolCfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.PgConn().Prepare(ctx, stmtName, batchQuery, paramTypes)
+		return err
+	}
+
 	poolCfg.MaxConns = int32(cfg.Concurrency)
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
@@ -49,8 +76,7 @@ func (w *PostgresWriter) Setup(cfg *Config) error {
 	}
 	w.pool = pool
 
-	_, err = w.pool.Exec(context.Background(), createTableDDL(w.tableName, `"`), pgx.QueryExecModeExec)
-	return err
+	return nil
 }
 
 func (w *PostgresWriter) WriteBatch(ctx context.Context, points []DataPoint) error {
@@ -63,12 +89,31 @@ func (w *PostgresWriter) WriteBatch(ctx context.Context, points []DataPoint) err
 		args = append(args, p.Host, p.Region, p.Datacenter, p.Service, p.CPU, p.Memory, p.DiskUtil, p.NetIn, p.NetOut, p.Timestamp)
 	}
 
-	// Use cached query text for standard-size batches.
-	query := w.batchQuery
-	if len(points) != w.batchSize {
-		query = buildPgInsert(w.tableName, len(points))
+	if len(points) == w.batchSize {
+		conn, err := w.pool.Acquire(ctx)
+		if err != nil {
+			return err
+		}
+		defer conn.Release()
+
+		pgConn := conn.Conn().PgConn()
+		paramValues := make([][]byte, len(args))
+		typeMap := conn.Conn().TypeMap()
+		paramOIDs := []uint32{25, 25, 25, 25, 701, 701, 701, 701, 701, 1184}
+		for i, arg := range args {
+			oid := paramOIDs[i%numCols]
+			paramValues[i], err = typeMap.Encode(oid, 0, arg, nil)
+			if err != nil {
+				return err
+			}
+		}
+
+		result := pgConn.ExecPrepared(ctx, w.stmtName, paramValues, nil, nil)
+		_, err = result.Close()
+		return err
 	}
 
+	query := buildPgInsert(w.tableName, len(points))
 	_, err := w.pool.Exec(ctx, query, args...)
 	return err
 }
