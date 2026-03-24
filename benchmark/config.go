@@ -17,6 +17,7 @@ type Config struct {
 	BatchSizes    []int
 	Concurrency   int
 	WarmupBatches int
+	NumHosts      int
 	Seed          int64
 	Output        string
 	BatchTimeout  time.Duration
@@ -46,6 +47,9 @@ func (c *Config) Validate() error {
 	}
 	if c.WarmupBatches < 0 {
 		return fmt.Errorf("warmup-batches must be non-negative")
+	}
+	if c.NumHosts <= 0 {
+		return fmt.Errorf("num-hosts must be positive")
 	}
 	if c.Output != "table" && c.Output != "json" {
 		return fmt.Errorf("output must be 'table' or 'json'")

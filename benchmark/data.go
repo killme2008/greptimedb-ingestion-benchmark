@@ -1,6 +1,7 @@
 package benchmark
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 )
@@ -18,9 +19,13 @@ type DataPoint struct {
 	Timestamp  time.Time
 }
 
-var hosts = []string{
-	"host-0", "host-1", "host-2", "host-3", "host-4",
-	"host-5", "host-6", "host-7", "host-8", "host-9",
+// generateHosts creates a slice of host names with the given count.
+func generateHosts(n int) []string {
+	hosts := make([]string, n)
+	for i := range hosts {
+		hosts[i] = fmt.Sprintf("host-%d", i)
+	}
+	return hosts
 }
 
 var regions = []string{
@@ -39,14 +44,20 @@ var services = []string{
 	"svc-15", "svc-16", "svc-17", "svc-18", "svc-19",
 }
 
+// SeriesCount returns the total number of unique time series for the given host count.
+// series = numHosts × 5 regions × 10 datacenters × 20 services
+func SeriesCount(numHosts int) int {
+	return numHosts * len(regions) * len(datacenters) * len(services)
+}
+
 // GenerateData produces totalRows data points with deterministic values.
-// Data is distributed round-robin across all host×region combinations.
-func GenerateData(totalRows int, seed int64) []DataPoint {
+// Data is distributed round-robin across all series combinations.
+func GenerateData(totalRows int, numHosts int, seed int64) []DataPoint {
 	rng := rand.New(rand.NewSource(seed))
 	baseTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	// 10 hosts × 5 regions × 10 datacenters × 20 services = 100,000 series
-	seriesCount := len(hosts) * len(regions) * len(datacenters) * len(services)
+	hosts := generateHosts(numHosts)
+	seriesCount := SeriesCount(numHosts)
 
 	points := make([]DataPoint, totalRows)
 	for i := range points {

@@ -241,7 +241,7 @@ func Run(cfg *Config) error {
 		totalRows := roundCfg.TotalRows + warmupRows
 		log.Printf("Generating %d data points (%d warmup + %d measurement, batch=%d, seed=%d)...",
 			totalRows, warmupRows, roundCfg.TotalRows, batchSize, roundCfg.Seed)
-		allPoints := GenerateData(totalRows, roundCfg.Seed)
+		allPoints := GenerateData(totalRows, roundCfg.NumHosts, roundCfg.Seed)
 		allBatches := SplitBatches(allPoints, batchSize)
 
 		// Split into warmup and measurement batches.

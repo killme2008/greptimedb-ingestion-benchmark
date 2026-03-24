@@ -52,6 +52,7 @@ func main() {
 	flag.StringVar(&batchSizeStr, "batch-size", "1000", "Rows per batch (comma-separated for multiple: 50,100,500,1000)")
 	flag.IntVar(&cfg.Concurrency, "concurrency", 5, "Number of concurrent workers")
 	flag.IntVar(&cfg.WarmupBatches, "warmup-batches", 10, "Number of warm-up batches")
+	flag.IntVar(&cfg.NumHosts, "num-hosts", 100, "Number of unique hosts (series = num-hosts × 5 regions × 10 datacenters × 20 services)")
 	flag.Int64Var(&cfg.Seed, "seed", 42, "Random seed for data generation")
 	flag.StringVar(&cfg.Output, "output", "table", "Output format: table, json")
 

@@ -82,8 +82,8 @@ func PrintTable(stats []ProtocolStats, cfg *Config) {
 	for i, bs := range cfg.BatchSizes {
 		batchStrs[i] = strconv.Itoa(bs)
 	}
-	fmt.Printf("Config: %d rows | batch=%s | concurrency=%d | warmup=%d batches\n",
-		cfg.TotalRows, strings.Join(batchStrs, ","), cfg.Concurrency, cfg.WarmupBatches)
+	fmt.Printf("Config: %d rows | %d series | batch=%s | concurrency=%d | warmup=%d batches\n",
+		cfg.TotalRows, SeriesCount(cfg.NumHosts), strings.Join(batchStrs, ","), cfg.Concurrency, cfg.WarmupBatches)
 
 	// Group stats by batch size, preserving order.
 	type group struct {
@@ -121,6 +121,7 @@ func PrintJSON(stats []ProtocolStats, cfg *Config) {
 	output := struct {
 		Config struct {
 			TotalRows     int    `json:"total_rows"`
+			SeriesCount   int    `json:"series_count"`
 			BatchSizes    []int  `json:"batch_sizes"`
 			Concurrency   int    `json:"concurrency"`
 			WarmupBatches int    `json:"warmup_batches"`
@@ -133,6 +134,7 @@ func PrintJSON(stats []ProtocolStats, cfg *Config) {
 		Results: stats,
 	}
 	output.Config.TotalRows = cfg.TotalRows
+	output.Config.SeriesCount = SeriesCount(cfg.NumHosts)
 	output.Config.BatchSizes = cfg.BatchSizes
 	output.Config.Concurrency = cfg.Concurrency
 	output.Config.WarmupBatches = cfg.WarmupBatches

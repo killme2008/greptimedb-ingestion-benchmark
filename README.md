@@ -76,6 +76,7 @@ GREPTIME_PASSWORD=secret
 -batch-size        Rows per batch, comma-separated for multiple (default: 1000)
 -concurrency       Number of concurrent workers (default: 5)
 -warmup-batches    Warm-up batches before measurement (default: 10)
+-num-hosts         Number of unique hosts; series = num-hosts × 1000 (default: 100 → 100K series)
 -seed              Random seed for data generation (default: 42)
 -output            Output format: table, json (default: table)
 ```
@@ -96,7 +97,7 @@ Each protocol writes to its own isolated table to ensure fair comparison:
 
 Schema:
 
-- **Tags**: `host` (10), `region` (5), `datacenter` (10), `service` (20) — 100,000 unique time series
+- **Tags**: `host` (configurable via `-num-hosts`), `region` (5), `datacenter` (10), `service` (20) — series = num-hosts × 1,000 (default 100,000)
 - **Fields**: `cpu`, `memory`, `disk_util`, `net_in`, `net_out` (all float64)
 - **Timestamp**: millisecond precision
 
@@ -124,5 +125,5 @@ mysql -h 127.0.0.1 -P 4002 -e "SELECT COUNT(*) FROM benchmark_grpc" public
 
 ## Requirements
 
-- Go 1.21+
+- Go 1.25+
 - `curl` and `nc` (for `bin/run.sh`)
