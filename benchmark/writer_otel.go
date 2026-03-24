@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net"
+	"net/http"
+	"time"
 
 	logapi "go.opentelemetry.io/otel/log"
 
@@ -34,9 +37,19 @@ func (w *OTelWriter) Setup(cfg *Config) error {
 		headers["Authorization"] = "Basic " + creds
 	}
 
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+			MaxIdleConns:        cfg.Concurrency + 2,
+			MaxIdleConnsPerHost: cfg.Concurrency + 2,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
+
 	exporter, err := otlploghttp.New(ctx,
 		otlploghttp.WithEndpointURL(fmt.Sprintf("http://%s:4000/v1/otlp/v1/logs", cfg.Host)),
 		otlploghttp.WithHeaders(headers),
+		otlploghttp.WithHTTPClient(httpClient),
 	)
 	if err != nil {
 		return fmt.Errorf("create otlp log exporter: %w", err)

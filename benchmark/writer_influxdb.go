@@ -3,6 +3,9 @@ package benchmark
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
+	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
@@ -30,7 +33,16 @@ func (w *InfluxDBWriter) Setup(cfg *Config) error {
 		token = cfg.User + ":" + cfg.Password
 	}
 
-	w.client = influxdb2.NewClient(serverURL, token)
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+			MaxIdleConns:        cfg.Concurrency + 2,
+			MaxIdleConnsPerHost: cfg.Concurrency + 2,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
+	opts := influxdb2.DefaultOptions().SetHTTPClient(httpClient)
+	w.client = influxdb2.NewClientWithOptions(serverURL, token, opts)
 	w.writeAPI = w.client.WriteAPIBlocking("", cfg.Database)
 	return nil
 }
