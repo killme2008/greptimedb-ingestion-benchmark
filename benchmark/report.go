@@ -36,7 +36,11 @@ func ComputeStats(r *BenchmarkResult, batchSize int) ProtocolStats {
 			continue
 		}
 		successRows += br.Rows
-		durations = append(durations, br.Duration)
+		// Exclude partial tail batches from latency percentiles — a smaller
+		// batch naturally completes faster and would skew the distribution.
+		if br.Rows == batchSize {
+			durations = append(durations, br.Duration)
+		}
 	}
 
 	sort.Slice(durations, func(i, j int) bool { return durations[i] < durations[j] })

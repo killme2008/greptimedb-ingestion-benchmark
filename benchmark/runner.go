@@ -64,6 +64,7 @@ func RunBenchmark(w Writer, cfg *Config, warmupBatches, measureBatches [][]DataP
 				if isWorkerWriter {
 					worker, err := ww.NewWorker()
 					if err != nil {
+						log.Printf("  [warmup] NewWorker failed: %v", err)
 						return
 					}
 					defer func() { _ = worker.Close() }()

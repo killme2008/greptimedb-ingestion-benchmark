@@ -65,7 +65,9 @@ func (w *GRPCBulkWriter) NewWorker() (Writer, error) {
 	}, nil
 }
 
-func (w *GRPCBulkWriter) WriteBatch(ctx context.Context, points []DataPoint) error {
+func (w *GRPCBulkWriter) WriteBatch(_ context.Context, points []DataPoint) error {
+	// ctx is unused: the underlying BulkWriter.Write (Arrow Flight DoPut) does
+	// not accept a context — the stream lifecycle is managed by BulkWriter.Close.
 	tbl, err := buildGRPCTable(w.tableName, w.schema, points)
 	if err != nil {
 		return err
