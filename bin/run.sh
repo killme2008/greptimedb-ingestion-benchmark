@@ -25,13 +25,38 @@ cleanup() {
     fi
 }
 
+get_installed_version() {
+    "$BINARY" --version 2>/dev/null | awk '/^version:/ {print $2; exit}'
+}
+
+get_latest_version() {
+    curl -fsSL https://api.github.com/repos/GreptimeTeam/greptimedb/releases/latest 2>/dev/null \
+        | grep '"tag_name":' | head -1 | sed -E 's/.*"tag_name": *"v?([^"]+)".*/\1/'
+}
+
 install_greptimedb() {
+    local latest installed
+    latest="$(get_latest_version || true)"
+
     if [[ -x "$BINARY" ]]; then
-        echo "GreptimeDB already installed at $BINARY"
-        return
+        installed="$(get_installed_version || true)"
+        if [[ -z "$latest" ]]; then
+            echo "GreptimeDB ${installed:-unknown} installed at $BINARY (latest version lookup failed, skipping upgrade check)"
+            return
+        fi
+        # GitHub's releases/latest excludes pre-releases, so `latest` is always
+        # the newest GA. Any mismatch (including older GA or any pre-release
+        # cached locally) should trigger a reinstall.
+        if [[ "$installed" == "$latest" ]]; then
+            echo "GreptimeDB $installed is up to date"
+            return
+        fi
+        echo "Upgrading GreptimeDB ${installed:-unknown} -> $latest"
+        rm -f "$BINARY"
+    else
+        echo "Installing GreptimeDB ${latest:-latest}..."
     fi
 
-    echo "Installing GreptimeDB..."
     mkdir -p "$DATA_DIR"
     # The install script extracts binary to CWD.
     (cd "$DATA_DIR" && curl -fsSL \
