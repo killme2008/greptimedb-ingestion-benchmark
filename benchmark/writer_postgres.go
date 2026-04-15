@@ -15,9 +15,6 @@ type PostgresWriter struct {
 	batchSize int
 	// batchQuery caches the INSERT query text for the standard batch size,
 	// avoiding repeated string construction on every WriteBatch call.
-	// Note: this is a Go-side optimization only. GreptimeDB does not support
-	// the Describe message, so pgx cannot use CacheStatement/CacheDescribe
-	// modes — every batch sends a full Parse+Bind+Execute round-trip.
 	batchQuery string
 }
 
@@ -35,11 +32,9 @@ func (w *PostgresWriter) Setup(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	// QueryExecModeExec: sends Parse(unnamed)+Bind+Execute each time.
-	// GreptimeDB does not support the Describe message required by
-	// CacheStatement/CacheDescribe modes, so prepared statement caching
-	// is not possible via pgx — every batch incurs a Parse round-trip.
-	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
+	// Use CacheStatement mode to cache prepared statements on the client side,
+	// reducing Parse round-trips for repeated queries.
+	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheStatement
 	// Match pool size to concurrency to avoid connection wait under load.
 	poolCfg.MaxConns = int32(cfg.Concurrency)
 
