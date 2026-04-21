@@ -29,8 +29,9 @@ func (w *OTelWriter) Setup(cfg *Config) error {
 	ctx := context.Background()
 
 	headers := map[string]string{
-		"X-Greptime-DB-Name":        cfg.Database,
-		"X-Greptime-Log-Table-Name": cfg.TableName,
+		"X-Greptime-DB-Name":           cfg.Database,
+		"X-Greptime-Log-Table-Name":    cfg.TableName,
+		"X-Greptime-Log-Pipeline-Name": "greptime_identity",
 	}
 	if cfg.User != "" || cfg.Password != "" {
 		creds := base64.StdEncoding.EncodeToString([]byte(cfg.User + ":" + cfg.Password))
