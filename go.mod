@@ -1,10 +1,10 @@
 module github.com/GreptimeTeam/ingestion-benchmark
 
-go 1.25.4
+go 1.26.0
 
 require (
 	github.com/GreptimeTeam/greptime-proto v0.15.0
-	github.com/GreptimeTeam/greptimedb-ingester-go v0.7.1
+	github.com/GreptimeTeam/greptimedb-ingester-go v0.7.2
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/jackc/pgx/v5 v5.8.0
