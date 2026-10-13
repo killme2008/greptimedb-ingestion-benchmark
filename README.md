@@ -13,8 +13,11 @@ A CLI benchmark tool that compares GreptimeDB's ingestion performance across dif
 | OpenTelemetry (OTLP) | `go.opentelemetry.io/otel` v1.42.0 | 4000 | HTTP+Protobuf (Logs) |
 | MySQL INSERT | `go-sql-driver/mysql` v1.9.3 | 4002 | MySQL wire |
 | PostgreSQL INSERT | `jackc/pgx` v5.8.0 | 4003 | PostgreSQL wire |
+| PostgreSQL COPY | `jackc/pgx` v5.8.0 | 4003 | PostgreSQL wire (COPY FROM STDIN, CSV stream) |
 
 All clients use default SDK settings — no connection pool tuning, no buffer size adjustments, no custom timeouts.
+
+> **Note:** `postgres_copy` streams batches via `COPY <table> FROM STDIN WITH (FORMAT csv)` over the PostgreSQL wire protocol (one CSV record per row). It requires a GreptimeDB build with COPY FROM STDIN support (greptimedb#9297); older releases reject the statement.
 
 ## Quick Start
 
@@ -29,6 +32,7 @@ Pass any flags through to the benchmark:
 ```bash
 bin/run.sh -protocols grpc,influxdb -total-rows 50000 -concurrency 8
 bin/run.sh -protocols grpc,otel -batch-size 50,100,500,1000
+bin/run.sh -protocols postgres_copy,postgres   # compare COPY vs INSERT
 bin/run.sh --help
 ```
 
@@ -71,7 +75,7 @@ GREPTIME_PASSWORD=secret
 ### Benchmark Flags
 
 ```
--protocols         Comma-separated: grpc,grpc_stream,grpc_bulk,influxdb,otel,mysql,postgres (default: all)
+-protocols         Comma-separated: grpc,grpc_stream,grpc_bulk,influxdb,otel,mysql,postgres,postgres_copy (default: all)
 -total-rows        Total rows to write per protocol (default: 10000000)
 -batch-size        Rows per batch, comma-separated for multiple (default: 1000)
 -concurrency       Number of concurrent workers (default: 5)
@@ -94,6 +98,7 @@ Each protocol writes to its own isolated table to ensure fair comparison:
 | OpenTelemetry | `benchmark_otel` |
 | MySQL INSERT | `benchmark_mysql` |
 | PostgreSQL INSERT | `benchmark_postgres` |
+| PostgreSQL COPY | `benchmark_postgres_copy` |
 
 Schema:
 
@@ -108,7 +113,7 @@ Data is pre-generated with a fixed random seed before measurement begins, ensuri
 1. **Generate** — All data points are pre-generated in memory (not timed). Warmup data and measurement data use separate, non-overlapping batches.
 2. **Setup** — Initialize the writer (connect, create per-protocol tables)
 3. **Warm-up** — Write warmup-only batches, results discarded
-4. **Measure** — N concurrent workers pull measurement batches from a shared channel; each `WriteBatch` call is timed. Streaming protocols (gRPC Stream, gRPC Bulk) use per-worker streams for maximum throughput.
+4. **Measure** — N concurrent workers pull measurement batches from a shared channel; each `WriteBatch` call is timed. Streaming protocols (gRPC Stream, gRPC Bulk) use per-worker streams for maximum throughput, and so does PostgreSQL COPY (one dedicated connection per worker, since a COPY stream owns its connection while active).
 5. **Verify** — Query actual row count via HTTP SQL API and compare against expected; log warning on mismatch.
 6. **Report** — Compute throughput (rows/sec = total rows / wall clock time) and latency percentiles (p50/p95/p99)
 

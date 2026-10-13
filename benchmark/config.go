@@ -28,7 +28,7 @@ type Config struct {
 	TableName string
 }
 
-var AllProtocols = []string{"grpc", "grpc_stream", "grpc_bulk", "influxdb", "otel", "mysql", "postgres"}
+var AllProtocols = []string{"grpc", "grpc_stream", "grpc_bulk", "influxdb", "otel", "mysql", "postgres", "postgres_copy"}
 
 func (c *Config) Validate() error {
 	if c.TotalRows <= 0 {
