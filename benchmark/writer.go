@@ -32,13 +32,14 @@ type protocolWriter struct {
 
 func buildWriters(protocols []string) []protocolWriter {
 	registry := map[string]func() Writer{
-		"grpc":        func() Writer { return &GRPCWriter{} },
-		"grpc_stream": func() Writer { return &GRPCStreamWriter{} },
-		"grpc_bulk":   func() Writer { return &GRPCBulkWriter{} },
-		"influxdb":    func() Writer { return &InfluxDBWriter{} },
-		"otel":        func() Writer { return &OTelWriter{} },
-		"mysql":       func() Writer { return &MySQLWriter{} },
-		"postgres":    func() Writer { return &PostgresWriter{} },
+		"grpc":          func() Writer { return &GRPCWriter{} },
+		"grpc_stream":   func() Writer { return &GRPCStreamWriter{} },
+		"grpc_bulk":     func() Writer { return &GRPCBulkWriter{} },
+		"influxdb":      func() Writer { return &InfluxDBWriter{} },
+		"otel":          func() Writer { return &OTelWriter{} },
+		"mysql":         func() Writer { return &MySQLWriter{} },
+		"postgres":      func() Writer { return &PostgresWriter{} },
+		"postgres_copy": func() Writer { return &PostgresCopyWriter{} },
 	}
 
 	var writers []protocolWriter
